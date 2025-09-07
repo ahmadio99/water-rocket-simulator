@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>Water Rocket Simulator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 0; background: #0b1020; color: #e6e8ef; }
+    header { padding: 16px 24px; background: #0f1530; border-bottom: 1px solid #222943; }
+    main { display: grid; grid-template-columns: 380px 1fr; gap: 16px; padding: 16px; }
+    .panel { background: #101634; border: 1px solid #1d2449; border-radius: 10px; padding: 14px; }
+    h1 { font-size: 20px; margin: 0; }
+    h2 { font-size: 16px; margin: 12px 0; }
+    label { display: block; margin: 8px 0 4px; font-size: 13px; color: #b7bfde; }
+    input { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #2a3464; background: #0d1330; color: #e6e8ef; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button { background: #3a6cf0; border: none; color: white; padding: 10px 12px; border-radius: 8px; cursor: pointer; }
+    button:hover { background: #2f59c7; }
+    .log, .chat { height: 180px; overflow: auto; background: #0c1230; border: 1px solid #182153; border-radius: 8px; padding: 8px; }
+    .charts { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    .flex { display: flex; gap: 8px; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #1b2248; color: #c6d0ff; font-size: 12px; margin-right: 6px; }
+    .stat { display: inline-block; margin-right: 8px; font-size: 13px; color: #c6d0ff; }
+    .spacer { height: 8px; }
+    #startScreen { display: flex; justify-content: center; align-items: center; height: 100vh; background: #0b1020; }
+    #simulator { display: none; }
+    .start-box { background: #101634; padding: 20px; border-radius: 10px; text-align: center; max-width: 420px; width: 90%; }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Start screen -->
+<div id="startScreen">
+  <div class="start-box">
+    <h1>Welkom bij de Water Rocket Simulator</h1>
+    <p>Voer je naam in om te beginnen:</p>
+    <input id="playerNameInput" placeholder="Jouw naam" />
+    <br /><br />
+    <button onclick="startGame()">Start</button>
+  </div>
+</div>
+
+<!-- Simulator -->
+<div id="simulator">
+  <header>
+    <h1>Multiplayer Water Rocket Simulator</h1>
+    <div>Live events: 🌬 Windvlaag • 💦 Lekkage • 🔥 Turbo • 🌩 Storm</div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Launch settings</h2>
+      <label>Player name</label>
+      <input id="player" readonly />
+
+      <div class="row">
+        <div>
+          <label>Bottle volume (L)</label>
+          <input id="bottle_volume_l" type="number" step="0.1" value="2" />
+        </div>
+        <div>
+          <label>Bottle diameter (cm)</label>
+          <input id="bottle_diameter_cm" type="number" step="0.1" value="10" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Nozzle diameter (cm)</label>
+          <input id="nozzle_diameter_cm" type="number" step="0.1" value="2" />
+        </div>
+        <div>
+          <label>Water volume (L)</label>
+          <input id="water_volume_l" type="number" step="0.05" value="1" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Air pressure (psi gauge)</label>
+          <input id="air_pressure_psi" type="number" step="1" value="50" />
+        </div>
+        <div>
+          <label>Soap amount (0-1)</label>
+          <input id="soap_amount" type="number" step="0.1" value="0.1" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Wind speed (m/s)</label>
+          <input id="wind_speed_ms" type="number" step="0.5" value="0" />
+        </div>
+        <div>
+          <label>Temperature (°C)</label>
+          <input id="temperature_c" type="number" step="1" value="20" />
+        </div>
+      </div>
+
+      <label style="display:block;margin-top:8px;">
+        <input type="checkbox" id="eventsToggle" checked /> Enable live events
+      </label>
+
+      <div class="spacer"></div>
+      <button id="launchBtn">Launch</button>
+
+      <div class="spacer"></div>
+      <div id="stats">
+        <span class="stat">Max altitude: <span id="stat_alt">0</span> m</span>
+        <span class="stat">Range: <span id="stat_range">0</span> m</span>
+      </div>
+
+      <div class="spacer"></div>
+      <h2>Launch Log</h2>
+      <div id="log" class="log"></div>
+
+      <div class="spacer"></div>
+      <h2>Chat</h2>
+      <div id="chat" class="chat"></div>
+      <div class="flex">
+        <input id="chatInput" placeholder="Say something..." />
+        <button id="sendBtn">Send</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Flight data</h2>
+      <div class="charts">
+        <canvas id="altChart" height="160"></canvas>
+        <canvas id="trajChart" height="180"></canvas>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+// Start flow
+function startGame() {
+  const name = document.getElementById('playerNameInput').value.trim();
+  if (!name) { alert('Voer een naam in'); return; }
+  document.getElementById('player').value = name;
+  document.getElementById('startScreen').style.display = 'none';
+  document.getElementById('simulator').style.display = 'block';
+  connectWS();
+}
+
+const $ = id => document.getElementById(id);
+
+function appendLog(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  $('log').appendChild(div);
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+function appendChat(user, text) {
+  const div = document.createElement('div');
+  div.innerHTML = `<span class="tag">${user}</span>${text}`;
+  $('chat').appendChild(div);
+  $('chat').scrollTop = $('chat').scrollHeight;
+}
+
+// WebSocket
+let ws;
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen = () => appendChat('SYSTEM', 'Verbonden met server');
+  ws.onmessage = ev => {
+    const msg = JSON.parse(ev.data);
+    if (msg.channel === 'chat') {
+      appendChat(msg.data.user, msg.data.text);
+    } else if (msg.channel === 'launch_log') {
+      const d = msg.data;
+      appendLog(`🚀 ${d.player} — Alt: ${d.max_altitude_m} m, Range: ${d.range_m} m`);
+    }
+  };
+  ws.onclose = () => appendChat('SYSTEM', 'Verbinding verbroken');
+}
+
+$('sendBtn').onclick = () => {
+  const user = $('player').value || 'anon';
+  const text = $('chatInput').value.trim();
+  if (!text) return;
+  ws?.send(JSON.stringify({ type: 'chat', user, text }));
+  $('chatInput').value = '';
+};
+
+$('chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('sendBtn').click();
+});
+
+// Charts
+const altCtx = $('altChart').getContext('2d');
+const trajCtx = $('trajChart').getContext('2d');
+
+const altChart = new Chart(altCtx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{ label: 'Altitude (m)', data: [], borderColor: '#6cc8ff', tension: 0.2 }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { color: '#cfe2ff' } } },
+    scales: {
+      x: { ticks: { color: '#cfe2ff' }, grid: { color: '#2a3464' } },
+      y: { ticks: { color: '#cfe2ff' }, grid: { color: '#2a3464' } }
+    }
+  }
+});
+
+const trajChart = new Chart(trajCtx, {
+  type: 'line',
+  data: {
+    datasets: [
+      { label: 'Trajectory', data: [], borderColor: '#9f8bff', tension: 0.2, parsing: false }
+    ]
+  },
+  options: {
+    parsing: false,
+    plugins: { legend: { labels: { color: '#cfe2ff' } } },
+    scales: {
+      x: {
+        type: 'linear', position: 'bottom',
+        ticks: { color: '#cfe2ff' }, grid: { color: '#2a3464' },
+        title: { display: true, text: 'x (m)', color: '#cfe2ff' }
+      },
+      y: {
+        ticks: { color: '#cfe2ff' }, grid: { color: '#2a3464' },
+        title: { display: true, text: 'y (m)', color: '#cfe2ff' }
+      }
+    }
+  }
+});
+
+// Launch
+$('launchBtn').onclick = async () => {
+  const payload = {
+    bottle_volume_l: parseFloat($('bottle_volume_l').value),
+    bottle_diameter_cm: parseFloat($('bottle_diameter_cm').value),
+    nozzle_diameter_cm: parseFloat($('nozzle_diameter_cm').value),
+    water_volume_l: parseFloat($('water_volume_l').value),
+    air_pressure_psi: parseFloat($('air_pressure_psi').value),
+    soap_amount: parseFloat($('soap_amount').value),
+    wind_speed_ms: parseFloat($('wind_speed_ms').value),
+    temperature_c: parseFloat($('temperature_c').value),
+    player: $('player').value || 'anon',
+    events_enabled: document.getElementById('eventsToggle').checked
+  };
+
+  try {
+    const res = await fetch('/launch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error('Launch failed');
+
+    $('stat_alt').textContent = data.summary.max_altitude_m;
+    $('stat_range').textContent = data.summary.range_m;
+
+    // Update altitude chart
+    const t = data.trajectory.t;
+    const y = data.trajectory.y;
+    altChart.data.labels = t;
+    altChart.data.datasets[0].data = y;
+    altChart.update();
+
+    // Update trajectory chart
+    const x = data.trajectory.x;
+    const xy = x.map((xi, i) => ({ x: xi, y: y[i] }));
+    trajChart.data.datasets[0].data = xy;
+    trajChart.update();
+
+    // Show events locally if enabled
+    if (document.getElementById('eventsToggle').checked) {
+      (data.summary.events || []).forEach(line => {
+        appendChat('SYSTEM', `${payload.player}: ${line}`);
+      });
+    }
+  } catch (err) {
+    appendLog('❌ Launch error: ' + (err?.message || err));
+  }
+};
+</script>
+</body>
+</html>
